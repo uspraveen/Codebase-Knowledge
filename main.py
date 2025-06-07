@@ -56,6 +56,9 @@ def main():
     parser.add_argument("--no-cache", action="store_true", help="Disable LLM response caching (default: caching enabled)")
     # Add max_abstraction_num parameter to control the number of abstractions
     parser.add_argument("--max-abstractions", type=int, default=10, help="Maximum number of abstractions to identify (default: 10)")
+    # Control prompt token limit and rate
+    parser.add_argument("--max-tokens", type=int, default=32000, help="Approximate maximum tokens per LLM prompt")
+    parser.add_argument("--llm-rate", type=int, default=30, help="Approximate maximum LLM calls per minute")
 
     args = parser.parse_args()
 
@@ -87,6 +90,7 @@ def main():
         
         # Add max_abstraction_num parameter
         "max_abstraction_num": args.max_abstractions,
+        "max_prompt_tokens": args.max_tokens,
 
         # Outputs will be populated by the nodes
         "files": [],
@@ -100,6 +104,8 @@ def main():
     # Display starting message with repository/directory and language
     print(f"Starting tutorial generation for: {args.repo or args.dir} in {args.language.capitalize()} language")
     print(f"LLM caching: {'Disabled' if args.no_cache else 'Enabled'}")
+    os.environ['LLM_CALLS_PER_MIN'] = str(args.llm_rate)
+    os.environ['MAX_PROMPT_TOKENS'] = str(args.max_tokens)
 
     # Create the flow instance
     tutorial_flow = create_tutorial_flow()
