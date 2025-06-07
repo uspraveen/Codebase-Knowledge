@@ -98,6 +98,8 @@ shared = {
     "exclude_patterns": set(), # File patterns to exclude
     "max_file_size": 100000, # Default or user-specified max file size
     "language": "english", # Default or user-specified language for the tutorial
+    "max_prompt_tokens": 32000, # Rough limit for LLM prompt chunking
+    "llm_calls_per_min": 30, # Soft rate limit for LLM calls
 
     # --- Intermediate/Output Data ---
     "files": [], # Output of FetchRepo: List of tuples (file_path: str, file_content: str)
@@ -128,8 +130,8 @@ shared = {
     *   *Purpose*: Analyze the code to identify key concepts/abstractions using indices. Generates potentially translated names and descriptions if language is not English.
     *   *Type*: Regular
     *   *Steps*:
-        *   `prep`: Read `files` (list of tuples), `project_name`, and `language` from shared store. Create context using `create_llm_context` helper which adds file indices. Format the list of `index # path` for the prompt.
-        *   `exec`: Construct a prompt for `call_llm`. If language is not English, add instructions to generate `name` and `description` in the target language. Ask LLM to identify ~5-10 core abstractions, provide a simple description for each, and list the relevant *file indices* (e.g., `- 0 # path/to/file.py`). Request YAML list output. Parse and validate the YAML, ensuring indices are within bounds and converting entries like `0 # path...` to just the integer `0`.
+        *   `prep`: Read `files` (list of tuples), `project_name`, and `language` from shared store. Create context using `create_llm_context`, which chunks files by `max_prompt_tokens` and records the full file listing for reference.
+        *   `exec`: For each chunk, construct a prompt for `call_llm` (respecting `llm_calls_per_min`) and include any abstractions already discovered. If language is not English, add instructions to generate `name` and `description` in the target language. Parse the YAML list of abstractions returned for each chunk and merge them until reaching the desired number.
         *   `post`: Write the validated list of `abstractions` (e.g., `[{"name": "Node", "description": "...", "files": [0, 3, 5]}, ...]`) containing file *indices* and potentially translated `name`/`description` to the shared store.
 
 3.  **`AnalyzeRelationships`**
@@ -153,7 +155,7 @@ shared = {
     *   *Type*: **BatchNode**
     *   *Steps*:
         *   `prep`: Read `chapter_order` (indices), `abstractions`, `files`, `project_name`, and `language` from shared store. Initialize an empty instance variable `self.chapters_written_so_far`. Return an iterable list where each item corresponds to an *abstraction index* from `chapter_order`. Each item should contain chapter number, potentially translated abstraction details, a map of related file content (`{ "idx # path": content }`), full chapter listing (potentially translated names), chapter filename map, previous/next chapter info (potentially translated names), and language.
-        *   `exec(item)`: Construct a prompt for `call_llm`. If language is not English, add detailed instructions to write the *entire* chapter in the target language, translating explanations, examples, etc., while noting which input context might already be translated. Ask LLM to write a beginner-friendly Markdown chapter. Provide potentially translated concept details. Include a summary of previously written chapters (potentially translated). Provide relevant code snippets. Add the generated (potentially translated) chapter content to `self.chapters_written_so_far` for the next iteration's context. Return the chapter content.
+        *   `exec(item)`: Construct a prompt for `call_llm`. If language is not English, add detailed instructions to write the *entire* chapter in the target language, translating explanations, examples, etc., while noting which input context might already be translated. Ask LLM to write a beginner-friendly Markdown chapter. Provide potentially translated concept details. Include a summary of previously written chapters (potentially translated). Provide relevant code snippets (now with line numbers for traceability). Add the generated (potentially translated) chapter content to `self.chapters_written_so_far` for the next iteration's context. Return the chapter content.
         *   `post(shared, prep_res, exec_res_list)`: `exec_res_list` contains the generated chapter Markdown content strings (potentially translated), ordered correctly. Assign this list directly to `shared["chapters"]`. Clean up `self.chapters_written_so_far`.
 
 6.  **`CombineTutorial`**
