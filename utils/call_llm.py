@@ -3,7 +3,6 @@ import os
 import logging
 import json
 from datetime import datetime
-import time
 
 # Configure logging
 log_directory = os.getenv("LOG_DIR", "logs")
@@ -25,41 +24,11 @@ logger.addHandler(file_handler)
 # Simple cache configuration
 cache_file = "llm_cache.json"
 
-# Rate limit and token settings
-CALLS_PER_MIN = int(os.getenv("LLM_CALLS_PER_MIN", "30"))
-MAX_PROMPT_TOKENS = int(os.getenv("MAX_PROMPT_TOKENS", "32000"))
-_call_timestamps = []  # track call times for rate limiting
-
-
-def _token_count(text: str) -> int:
-    """Rudimentary token counter based on whitespace."""
-    return len(text.split())
-
 
 # By default, we Google Gemini 2.5 pro, as it shows great performance for code understanding
 def call_llm(prompt: str, use_cache: bool = True) -> str:
-    """Send a prompt to the LLM with rudimentary rate limiting and token logs."""
-
-    # Rate limiting based on CALLS_PER_MIN
-    now = time.time()
-    global _call_timestamps
-    _call_timestamps = [t for t in _call_timestamps if now - t < 60]
-    if len(_call_timestamps) >= CALLS_PER_MIN:
-        sleep_time = 60 - (now - _call_timestamps[0])
-        if sleep_time > 0:
-            time.sleep(sleep_time)
-        now = time.time()
-        _call_timestamps = [t for t in _call_timestamps if now - t < 60]
-    _call_timestamps.append(now)
-
-    # Log the prompt and token count
-    token_len = _token_count(prompt)
-    logger.info(f"PROMPT_TOKENS: {token_len}")
+    # Log the prompt
     logger.info(f"PROMPT: {prompt}")
-    if token_len > MAX_PROMPT_TOKENS:
-        logger.warning(
-            f"Prompt length {token_len} exceeds MAX_PROMPT_TOKENS={MAX_PROMPT_TOKENS}"
-        )
 
     # Check cache if enabled
     if use_cache:
